@@ -2,21 +2,13 @@ name: Collect
 
 on:
   workflow_dispatch:
-
-  push:
-    paths:
-      - "./EternityBase"
-      - "./sub/sub_merge_base64.txt"
-      - "./sub/sub_merge_yaml.yml"
-
   schedule:
-    # - cron: '*/5 * * * *'
-    # 表达式生成  https://crontab.guru/
     - cron: "0 0,12 * * *"
+    - cron: "30 */2 * * *"
 
 jobs:
-  main:
-    name: Collect & SpeedTest & Filter
+  public:
+    name: Collect Public Nodes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,25 +22,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      # setup actions has built-in caching function
-      # - uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/pip
-      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pip-
-      # - uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/yarn
-      #     key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-node-
       - name: Set Timezone
         run: sudo timedatectl set-timezone 'Asia/Tehran'
       - name: Install Requirements
         run: |
           pip install -r ./utils/requirements.txt
-
       - name: Running Collector
         run: |
           wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
@@ -56,7 +34,7 @@ jobs:
           chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
           node ./utils/localserver/index.js &
           sleep 2
-          python ./utils/list_merge.py
+          python ./utils/process_subscriptions.py --type public
       - name: Commit Changes
         run: |
           git config --local user.email "actions@github.com"
@@ -71,11 +49,10 @@ jobs:
         uses: ad-m/github-push-action@master
         with:
           branch: master
-
       - name: Run Lite Speedtest
         run: |
           sleep 5
-          sudo sh ./utils/speedtest/speedtest2_yaml.sh
+          sudo sh ./utils/run_speedtest.sh https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/utils/speedtest/lite_config_yaml.json https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/sub_merge_yaml.yml
           python ./utils/speedtest/output.py
       - name: Commit changes
         run: |
@@ -94,14 +71,10 @@ jobs:
         uses: ad-m/github-push-action@master
         with:
           branch: master
-
       - name: Run Convertor & Formatter
         run: |
           sleep 5
-          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxvf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
-          python ./utils/eternity_convert.py
+          python ./utils/process_subscriptions.py --type public
       - name: Commit changes
         run: |
           git config --local user.email "actions@github.com"
@@ -114,6 +87,75 @@ jobs:
           git add LogInfo.txt
           git clean -f -d
           git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
+      - name: Push Change
+        uses: ad-m/github-push-action@master
+        with:
+          branch: master
+
+  airport:
+    name: Collect Airport Nodes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Set Timezone
+        run: sudo timedatectl set-timezone 'Asia/Tehran'
+      - name: Install Requirements
+        run: |
+          pip install -r ./utils/requirements.txt
+      - name: Running Collector
+        run: |
+          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
+          tar -zxvf subconverter.tar.gz -C ./
+          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
+          python ./utils/process_subscriptions.py --type airport
+      - name: Commit Changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git pull origin master
+          git add ./sub
+          git checkout master
+          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Collected"
+      - name: Push Changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: master
+      - name: Run Lite Speedtest
+        run: |
+          sleep 5
+          sudo sh ./utils/run_speedtest.sh https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/utils/airport/speedtest/lite_config_yaml_airport.json https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/airport_merge_yaml.yml
+          python ./utils/airport/speedtest/output.py
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git pull origin master
+          git add EternityAir
+          git add EternityAir.txt
+          git add LogInfoAir.txt
+          git add ./sub
+          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
+      - name: Push Change
+        uses: ad-m/github-push-action@master
+        with:
+          branch: master
+      - name: Run Convertor & Formatter
+        run: |
+          sleep 5
+          python ./utils/process_subscriptions.py --type airport
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git pull origin master
+          git add EternityAir.yml
+          git add ./update/*
+          git add LogInfoAir.txt
+          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
       - name: Push Change
         uses: ad-m/github-push-action@master
         with:
